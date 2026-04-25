@@ -12,9 +12,8 @@ class LgmMusicBot(commands.Bot):
 
     async def setup_hook(self):
         print("Lade die erhabenen Module...")
-        await self.load_extension("cogs.state")
         for filename in os.listdir("./cogs"):
-            if filename.endswith(".py") and filename != "state.py":
+            if filename.endswith(".py"):
                 await self.load_extension(f"cogs.{filename[:-3]}")
                 print(f"Erhabenes Modul {filename[:-3]} geladen!")
 
@@ -28,9 +27,12 @@ if __name__ == "__main__":
     bot = LgmMusicBot()
 
     token = os.getenv("DISCORD_TOKEN")
-    token = "MTMyNzk5ODc0Mjg1MDMwNjA5MA.GKIoax.4_q2wtBKoA4-OSjtqGiQH1kTj_J9_o35hNrWIo"
+
     if not token:
         print("DISCORD_TOKEN environment variable not found")
         exit(1)
 
     bot.run(token)
+
+bot = LgmMusicBot()
+bot.run('MTMyNzk5ODc0Mjg1MDMwNjA5MA.GKIoax.4_q2wtBKoA4-OSjtqGiQH1kTj_J9_o35hNrWIo')
