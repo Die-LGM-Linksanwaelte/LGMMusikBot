@@ -33,6 +33,3 @@ if __name__ == "__main__":
         exit(1)
 
     bot.run(token)
-
-bot = LgmMusicBot()
-bot.run('MTMyNzk5ODc0Mjg1MDMwNjA5MA.GKIoax.4_q2wtBKoA4-OSjtqGiQH1kTj_J9_o35hNrWIo')
