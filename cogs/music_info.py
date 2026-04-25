@@ -6,13 +6,13 @@ from discord import app_commands
 class MusicInfoCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.state = bot.get_cog("StateCog")
 
 
     def get_music_data(self):
-        music_module = self.bot.get_cog("MusicCog")
-        if not music_module:
+        if not self.state:
             return None, None
-        return music_module.playback_info, music_module.music_cue
+        return self.state.playback_info, self.state.music_cue
 
     @commands.hybrid_command(name="now", description="Gibt Infos über das aktuelle Lied aus")
     async def now(self, ctx):

@@ -1,5 +1,4 @@
 import random
-
 import discord
 from discord.ext import commands
 from collections import deque
@@ -20,10 +19,7 @@ class MusicCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        self.playback_info = {}
-        self.server_settings = {}
-        self.past_songs = deque()
-        self.music_cue = deque()
+        self.state = bot.get_cog("StateCog")
         self.MUSIC_DIR = "/home/lichtgott/Music/BotMusik/"
 
     async def play_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -62,17 +58,17 @@ class MusicCog(commands.Cog):
         if error:
             print(f"Fehler beim Abspielen: {error}")
 
-        past_song = self.playback_info[ctx.guild.id]["file"]
+        past_song = self.state.playback_info[ctx.guild.id]["file"]
 
         # Hier löschen wir die gespeicherte Zeit für diesen Server
-        if ctx.guild.id in self.playback_info:
-            del self.playback_info[ctx.guild.id]
+        if ctx.guild.id in self.state.playback_info:
+            del self.state.playback_info[ctx.guild.id]
 
         coro = self.handle_song_end(ctx, past_song)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
     async def handle_song_end(self, ctx, past_song: str):
-        repeat = self.server_settings[ctx.guild.id]["repeat"]
+        repeat = self.state.server_settings[ctx.guild.id]["repeat"]
 
         if repeat == "Single":
             await self.play_song(past_song, ctx, ctx.guild.voice_client)
@@ -80,21 +76,21 @@ class MusicCog(commands.Cog):
                 await ctx.send("Wird dir nicht langweilig?")
         else:
             if repeat in ["All", "Shuffle"]:
-                self.past_songs.append(past_song)
+                self.state.past_songs.append(past_song)
 
-            if self.music_cue:
-                await self.play_song(self.music_cue.popleft(), ctx, ctx.guild.voice_client)
+            if self.state.music_cue:
+                await self.play_song(self.state.music_cue.popleft(), ctx, ctx.guild.voice_client)
             else:
                 if repeat == "None":
                     await ctx.send("🛑 Die Wiedergabe ist zu Ende!")
                 elif repeat in ["All","Shuffle"]:
-                    self.music_cue = self.past_songs
-                    self.past_songs = deque()
+                    self.state.music_cue = self.state.past_songs
+                    self.state.past_songs = deque()
                     await ctx.send("Wir wiederholen alles nochmal!")
                     if repeat == "Shuffle":
-                        random.shuffle(self.music_cue)
+                        random.shuffle(self.state.music_cue)
                         await ctx.send("Zufällig!")
-                    await self.play_song(self.music_cue.popleft(), ctx, ctx.guild.voice_client)
+                    await self.play_song(self.state.music_cue.popleft(), ctx, ctx.guild.voice_client)
                 else:
                     message = f"Error: Ungültiger Repeat-Modus: {repeat}"
                     await ctx.send(message)
@@ -121,13 +117,13 @@ class MusicCog(commands.Cog):
             return
 
         if is_playing_or_paused(ctx):
-            self.music_cue.append(best_match_file)
+            self.state.music_cue.append(best_match_file)
             await ctx.send(f"{best_match} ist in der Cue! Freu dich du HS")
             return
 
         #Weil ja dieser Teil nur drankommt, wenn bisher noch nichts gespielt wurde (aka es ist eine neue Session), muss
         # hier repeat zurückgesetzt werden.
-        self.server_settings[ctx.guild.id] = {
+        self.state.server_settings[ctx.guild.id] = {
             "repeat": "None"
         }
 
@@ -155,7 +151,7 @@ class MusicCog(commands.Cog):
             duration = 0  # Fallback, falls was schiefgeht
 
         # 2. Die Daten im "Gedächtnis" des Bots ablegen
-        self.playback_info[ctx.guild.id] = {
+        self.state.playback_info[ctx.guild.id] = {
             "start_time": time.time(),
             "duration": duration,
             "name": best_match,
@@ -182,8 +178,8 @@ class MusicCog(commands.Cog):
 
         voice_client.pause()
 
-        if ctx.guild.id in self.playback_info:
-            info = self.playback_info[ctx.guild.id]
+        if ctx.guild.id in self.state.playback_info:
+            info = self.state.playback_info[ctx.guild.id]
             info["is_paused"] = True
             info["pause_start"] = time.time()
 
@@ -198,8 +194,8 @@ class MusicCog(commands.Cog):
 
         voice_client.resume()
 
-        if ctx.guild.id in self.playback_info:
-            info = self.playback_info[ctx.guild.id]
+        if ctx.guild.id in self.state.playback_info:
+            info = self.state.playback_info[ctx.guild.id]
             if info["is_paused"]:
                 paused_duration = time.time() - info["pause_start"]
                 info["start_time"] += paused_duration
@@ -213,7 +209,8 @@ class MusicCog(commands.Cog):
         if not voice_client or not is_playing_or_paused(ctx):
             await ctx.send("Was soll ich den hier stoppen?")
             return
-        self.music_cue.clear()
+        self.state.music_cue.clear()
+        self.state.server_settings[ctx.guild.id]["repeat"] = "None"
         voice_client.stop()
         await ctx.send("RUHE IM GERICHTSAAL!")
 
@@ -222,8 +219,9 @@ class MusicCog(commands.Cog):
         voice_client = ctx.guild.voice_client
         if not voice_client or not is_playing_or_paused(ctx):
             await ctx.send("Was soll ich den hier skippen?")
+            return
 
-        await ctx.send(f"Ich überspringe jetzt {self.playback_info[ctx.guild.id]['name']}!")
+        await ctx.send(f"Ich überspringe jetzt {self.state.playback_info[ctx.guild.id]['name']}!")
         voice_client.stop()
 
 
@@ -236,34 +234,34 @@ class MusicCog(commands.Cog):
 
     @repeat_group.command(name="none", description="Beendet die Wiedergabe wenn die Queue leer ist.")
     async def repeat_none(self, ctx):
-        if ctx.guild.id in self.server_settings:
-            self.server_settings[ctx.guild.id]["repeat"] = "None"
+        if ctx.guild.id in self.state.server_settings:
+            self.state.server_settings[ctx.guild.id]["repeat"] = "None"
             await ctx.send("Es wiederholt sich nichts")
         else:
             await ctx.send("Es gibt keine Session, zu der der Repeat-modus geändert werden könnte.")
 
     @repeat_group.command(name="all", description="Wiederholt alle mit diesem Modus gehörten Lieder, wenn die Queue leer ist.")
     async def repeat_none(self, ctx):
-        if ctx.guild.id in self.server_settings:
-            self.server_settings[ctx.guild.id]["repeat"] = "All"
+        if ctx.guild.id in self.state.server_settings:
+            self.state.server_settings[ctx.guild.id]["repeat"] = "All"
             await ctx.send("Es wiederholt sich alles")
         else:
             await ctx.send("Es gibt keine Session, zu der der Repeat-modus geändert werden könnte.")
 
     @repeat_group.command(name="shuffle", description="Wiederholt alle mit diesem Modus gehörten Lieder in zufälliger Reihenfolge, wenn die Queue leer ist.")
     async def repeat_none(self, ctx):
-        if ctx.guild.id in self.server_settings:
-            self.server_settings[ctx.guild.id]["repeat"] = "Shuffle"
-            random.shuffle(self.music_cue) #Kann theoretisch auskommentiert werden, falls sich rausstellt, das man das nicht will
+        if ctx.guild.id in self.state.server_settings:
+            self.state.server_settings[ctx.guild.id]["repeat"] = "Shuffle"
+            random.shuffle(self.state.music_cue) #Kann theoretisch auskommentiert werden, falls sich rausstellt, das man das nicht will
             await ctx.send("Es wiederholt sich alles zufällig")
         else:
             await ctx.send("Es gibt keine Session, zu der der Repeat-modus geändert werden könnte.")
 
     @repeat_group.command(name="single", description="Wiederholt das aktuelle Lied für immer.")
     async def repeat_none(self, ctx):
-        if ctx.guild.id in self.server_settings:
-            self.server_settings[ctx.guild.id]["repeat"] = "Single"
-            await ctx.send(f"Es wiederholt sich {self.playback_info[ctx.guild.id]['name']}")
+        if ctx.guild.id in self.state.server_settings:
+            self.state.server_settings[ctx.guild.id]["repeat"] = "Single"
+            await ctx.send(f"Es wiederholt sich {self.state.playback_info[ctx.guild.id]['name']}")
         else:
             await ctx.send("Es gibt keine Session, zu der der Repeat-modus geändert werden könnte.")
 

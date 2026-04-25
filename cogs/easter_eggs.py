@@ -6,6 +6,7 @@ class EasterEggsCog(commands.Cog):
         self.bot = bot
         self.ABSTINENZ_ID = 1495885269394784317
         self.PENIS_ID = 1495869135622508615
+        self.state = bot.get_cog("StateCog")
 
 
     @commands.command()
@@ -20,12 +21,15 @@ class EasterEggsCog(commands.Cog):
             # Wenn er noch nirgends ist, tritt er frisch bei
             await channel.connect()
 
-        music_module = self.bot.get_cog("MusicCog")
 
-        if music_module is None:
+        if self.state is None:
             await ctx.send("@Lichtgott du hast mal wieder verkackt! Ich hab kein Musik-Modul! Wie kannst du nur!")
             return
 
+        self.state.server_settings[ctx.guild.id] = {
+            "repeat": "Single"
+        }
+        music_module = self.bot.get_cog("MusicCog")
         await music_module.play_song("AbstinenzDerUte.mp3", ctx, ctx.guild.voice_client)
 
     @commands.command()

@@ -12,14 +12,14 @@ import os
 class MusicPlaylistCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.state = bot.get_cog("StateCog")
         self.PLAYLIST_DIR = "/home/lichtgott/Music/BotPlaylists"
 
 
     def get_cue(self):
-        music_module = self.bot.get_cog("MusicCog")
-        if not music_module:
+        if not self.state:
             return None
-        return music_module.music_cue
+        return self.state.music_cue
 
 
     def create_playlist(self, name:str, playlist:list[str], overwrite=False):
@@ -107,7 +107,7 @@ class MusicPlaylistCog(commands.Cog):
         music_module = self.bot.get_cog("MusicCog")
         if playlist:
             await ctx.send("Playlist geladen")
-            music_module.music_cue.extend(playlist)
+            self.state.music_cue.extend(playlist)
 
             if not is_playing_or_paused(ctx):
                 await music_module.handle_song_end(ctx)
@@ -117,11 +117,11 @@ class MusicPlaylistCog(commands.Cog):
     @playlist_group.command(name="save", description="Speichert die aktuelle Queue als Playlist")
     async def playlist_save(self, ctx, name):
         music_module = self.bot.get_cog("MusicCog")
-        if not music_module.music_cue:
+        if not self.state.music_cue:
             await ctx.send("Ich kann keine leere Playlist erstellen!")
             return
         try:
-            self.create_playlist(name, music_module.music_cue)
+            self.create_playlist(name, self.state.music_cue)
             await ctx.send(f"Playlist '{name}' wurde erstellt!")
         except FileExistsError as e:
             await ctx.send(f"Es existiert bereits eine Playlist mit dem Namen:  \"{name}\"")

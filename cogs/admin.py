@@ -5,6 +5,7 @@ from discord.ext import commands
 class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.state = bot.get_cog("StateCog")
 
     @commands.command(name="reload", hidden=True)
     @commands.has_role("Eigentümer")  # <-- GANZ WICHTIG! Nur DU darfst das.
@@ -12,7 +13,7 @@ class AdminCog(commands.Cog):
         """Lädt ein Modul neu (Nur für den Bot-Besitzer)"""
         if extension is None:
             for filename in os.listdir("./cogs"):
-                if filename.endswith(".py"):
+                if filename.endswith(".py") and filename != "state.py":
                     await self.reload_cog(ctx,filename[:-3])
             return
         try:
@@ -22,7 +23,7 @@ class AdminCog(commands.Cog):
 
         except commands.ExtensionNotLoaded:
             await ctx.send(
-                f"⚠️ Das Modul `{extension}` war gar nicht geladen. Versuche es mit `!load` (falls du den Befehl baust).")
+                f"⚠️ Das Modul `{extension}` war gar nicht geladen.")
         except commands.ExtensionNotFound:
             await ctx.send(f"❌ Ich kann keine Datei namens `cogs/{extension}.py` finden!")
         except Exception as e:
@@ -114,11 +115,10 @@ class AdminCog(commands.Cog):
     @commands.command(name="debug", hidden=True)
     @commands.has_role("Eigentümer")
     async def debug_command(self, ctx):
-        music_module = self.bot.get_cog("MusicCog")
-        await ctx.send(music_module.playback_info)
-        await ctx.send(music_module.server_settings)
-        await ctx.send(music_module.past_songs)
-        await ctx.send(music_module.music_cue)
+        await ctx.send(self.state.playback_info)
+        await ctx.send(self.state.server_settings)
+        await ctx.send(self.state.past_songs)
+        await ctx.send(self.state.music_cue)
 
 
 async def setup(bot):
