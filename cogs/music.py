@@ -72,7 +72,7 @@ class MusicCog(commands.Cog):
 
         if repeat == "Single":
             await self.play_song(past_song, ctx, ctx.guild.voice_client)
-            if random.randint(0, 20) == 0:
+            if random.randint(0, 20) == 0 and past_song != "AbstinenzDerUte.mp3":
                 await ctx.send("Wird dir nicht langweilig?")
         else:
             if repeat in ["All", "Shuffle"]:
