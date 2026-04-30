@@ -1,6 +1,7 @@
 import os
 import discord
 from discord.ext import commands
+from datetime import datetime
 
 class AdminCog(commands.Cog):
     def __init__(self, bot):
@@ -130,6 +131,8 @@ class AdminCog(commands.Cog):
         await ctx.send(self.state.server_settings)
         await ctx.send(self.state.past_songs)
         await ctx.send(self.state.music_cue)
+        await ctx.send(datetime.fromtimestamp(self.state.last_seen_erhabenheit).strftime('%H:%M:%S, %d.%m.%Y'))
+        await ctx.send(self.state.first_stop)
 
 
 async def setup(bot):
