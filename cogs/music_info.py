@@ -53,8 +53,8 @@ class MusicInfoCog(commands.Cog):
         bar = "▬" * progress + "🔘" + "▬" * (10 - progress)
 
         embed = discord.Embed(
-            title=f"{status_emoji} **{str(meta["title"])}**",
-            description=f"von {meta["artist"]}\n Geladen von {current_file}\n {el_m}:{el_s:02d} {bar} {dur_m}:{dur_s:02d}`\n⏳ Noch **{rem_m}:{rem_s:02d}** bis zum Ende.",
+            title=f"{status_emoji} **{str(meta['title'])}**",
+            description=f"von {meta['artist']}\n Geladen von {current_file}\n {el_m}:{el_s:02d} {bar} {dur_m}:{dur_s:02d}`\n⏳ Noch **{rem_m}:{rem_s:02d}** bis zum Ende.",
             color=discord.Color.red()
         )
 

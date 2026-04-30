@@ -16,8 +16,8 @@ class StateCog(commands.Cog):
         self.last_seen_erhabenheit = 0
         self.first_stop = False
 
-        self.MUSIC_DIR = "/home/lichtgott/Music/BotMusik/"
-        self.PLAYLIST_DIR = "/home/lichtgott/Music/BotPlaylists"
+        self.MUSIC_DIR = "/music"
+        self.PLAYLIST_DIR = "/playlists"
 
 
 
