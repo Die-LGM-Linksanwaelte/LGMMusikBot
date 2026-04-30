@@ -12,6 +12,8 @@ class EasterEggsCog(commands.Cog):
         self.bot = bot
         self.ABSTINENZ_ID = 1495885269394784317
         self.PENIS_ID = 1495869135622508615
+        self.LICHTGOT_ID = 771375658235461652
+        self.LOETGOTT_ID = 861587158594093056
         self.state = bot.get_cog("StateCog")
         self.EVENT_NAME = self.state.NEVER_COMING_EVENT_NAME
         self.USE_MANUAL_TOGGLE = self.state.USE_MANUAL_ERHABENHEIT_TOGGLE
@@ -119,19 +121,17 @@ class EasterEggsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        LICHTGOT_ID = 771375658235461652
-        LOETGOTT_ID = 861587158594093056
         SUCKYSUCKY = "ErhabeneBegruesung.mp3"
         COOLDOWN = 1200
 
-        if member.id not in [LICHTGOT_ID, LOETGOTT_ID]:
+        if member.id not in [self.LICHTGOT_ID, self.LOETGOTT_ID]:
             return
 
         def are_together_now(channel):
             if not channel:
                 return False
             member_ids = [m.id for m in channel.members]
-            return LICHTGOT_ID in member_ids and LOETGOTT_ID in member_ids
+            return self.LICHTGOT_ID in member_ids and self.LOETGOTT_ID in member_ids
 
         def were_together_before(channel, member_that_moved):
             if not channel:
@@ -139,7 +139,7 @@ class EasterEggsCog(commands.Cog):
 
             member_ids = set(m.id for m in channel.members)
             member_ids.add(member_that_moved.id)
-            return LOETGOTT_ID in member_ids and LICHTGOT_ID in member_ids
+            return self.LOETGOTT_ID in member_ids and self.LICHTGOT_ID in member_ids
 
 
         together_before = were_together_before(before.channel, member)
@@ -240,12 +240,10 @@ class EasterEggsCog(commands.Cog):
     @commands.command(name="glue")
     @commands.has_role("Eigentümer")
     async def glue_command(self, ctx):
-        USER_A_ID = 123456789  # Deine ID
-        USER_B_ID = 987654321  # Lötgott ID
         FAREWELL_SONG = "I Glued My Balls to My Butthole Again.mp3"
 
         # Nur ihr beide dürft den Befehl nutzen
-        if ctx.author.id not in [USER_A_ID, USER_B_ID]:
+        if ctx.author.id not in [self.LICHTGOT_ID, self.LOETGOTT_ID]:
             return
 
         if not ctx.author.voice or not ctx.author.voice.channel:
