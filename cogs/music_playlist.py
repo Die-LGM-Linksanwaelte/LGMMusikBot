@@ -13,7 +13,7 @@ class MusicPlaylistCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.state = bot.get_cog("StateCog")
-        self.PLAYLIST_DIR = "/home/lichtgott/Music/BotPlaylists"
+        self.PLAYLIST_DIR = self.state.PLAYLIST_DIR
 
 
     def get_cue(self):

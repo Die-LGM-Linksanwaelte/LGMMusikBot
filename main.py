@@ -8,12 +8,15 @@ class LgmMusicBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
 
-        super().__init__(command_prefix='§', intents=intents)
+        super().__init__(command_prefix='!', intents=intents)
 
     async def setup_hook(self):
         print("Lade die erhabenen Module...")
+        print("Zur Sicherheit erst state")
+        await self.load_extension("cogs.state")
+        print("Und jetzt der Rest")
         for filename in os.listdir("./cogs"):
-            if filename.endswith(".py"):
+            if filename.endswith(".py") and filename != "state.py":
                 await self.load_extension(f"cogs.{filename[:-3]}")
                 print(f"Erhabenes Modul {filename[:-3]} geladen!")
 
@@ -33,6 +36,3 @@ if __name__ == "__main__":
         exit(1)
 
     bot.run(token)
-
-bot = LgmMusicBot()
-bot.run('MTMyNzk5ODc0Mjg1MDMwNjA5MA.GKIoax.4_q2wtBKoA4-OSjtqGiQH1kTj_J9_o35hNrWIo')

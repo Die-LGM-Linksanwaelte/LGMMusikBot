@@ -9,6 +9,8 @@ class StateCog(commands.Cog):
         self.server_settings = {}
         self.past_songs = deque()
         self.music_cue = deque()
+        self.MUSIC_DIR = "/home/lichtgott/Music/BotMusik/"
+        self.PLAYLIST_DIR = "/home/lichtgott/Music/BotPlaylists"
 
 
 async def setup(bot):

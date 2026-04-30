@@ -20,7 +20,7 @@ class MusicCog(commands.Cog):
         self.bot = bot
 
         self.state = bot.get_cog("StateCog")
-        self.MUSIC_DIR = "/home/lichtgott/Music/BotMusik/"
+        self.MUSIC_DIR = self.state.MUSIC_DIR
 
     async def play_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
         try:
