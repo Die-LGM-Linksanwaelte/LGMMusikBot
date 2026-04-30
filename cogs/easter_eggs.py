@@ -1,4 +1,6 @@
+import asyncio
 import random
+import time
 from discord.ext import commands
 
 class EasterEggsCog(commands.Cog):
@@ -54,6 +56,82 @@ class EasterEggsCog(commands.Cog):
             # Eine zufällige Nachricht auswählen und senden
             random_text = random.choice(valid_texts)
             await ctx.send(random_text)
+
+    @commands.command()
+    async def reset_timer(self, ctx):
+        self.state.last_seen_erhabenheit = 0
+        await ctx.send("Ok!")
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        LICHTGOT_ID = 771375658235461652
+        LOETGOTT_ID = 861587158594093056
+        SUCKYSUCKY = "ErhabeneBegruesung.mp3"
+        COOLDOWN = 600
+
+        channel = after.channel
+        if channel:
+            guild = member.guild
+            voice_client = guild.voice_client
+
+            members_in_channel = [m.id for m in after.channel.members]
+
+            if LICHTGOT_ID in members_in_channel and LOETGOTT_ID in members_in_channel:
+                now = time.time()
+                last_seen = self.state.last_seen_erhabenheit
+
+                if now - last_seen > COOLDOWN:
+                    self.state.last_seen_erhabenheit = now
+
+                    print(f"DIE ERHABENHEIT IST DA! Letztes mal war vor {int(now-last_seen)}s!")
+                    await self.trigger_greeting_interrupt(member.guild, channel, SUCKYSUCKY)
+
+                else:
+                    self.state.last_seen_erhabenheit = now
+
+    async def trigger_greeting_interrupt(self, guild, channel, song):
+        state = self.state
+        current_info = state.playback_info.get(guild.id)
+
+        old_data_copy = None
+        resume_time = 0
+        #was_playing = False
+
+        if guild.voice_client and guild.voice_client.is_playing():
+            #was_playing = True
+
+            start_time = current_info.get("start_time", time.time())
+            resume_time = time.time() - start_time
+            old_data_copy = current_info.copy()
+
+            #Musik stoppen
+            state.first_stop = True
+            state.playback_info[guild.id]["is_interrupted"] = True
+            #state.playback_info[guild.id]["interrupted_song"] = current_info
+            #state.playback_info[guild.id]["resume_at"] = resume_time
+            guild.voice_client.stop()
+
+            await asyncio.sleep(0.5)
+
+        if not guild.voice_client:
+            await channel.connect()
+
+        state.playback_info[guild.id] = {
+            #"start_time": time.time(),
+            #"duration": 0,
+            #"name": song,
+            #"file": song + ".mp3",
+            #"is_paused": False,
+            #"pause_start": 0,
+            "is_interrupted": True,
+            "interrupted_data": current_info,
+            "resume_at": resume_time,
+        }
+
+
+        musicCog = self.bot.get_cog("MusicCog")
+        await musicCog.play_song(song, guild, guild.voice_client)
+
 
 async def setup(bot):
     await bot.add_cog(EasterEggsCog(bot))

@@ -10,9 +10,40 @@ import difflib
 from discord import app_commands
 
 
-def is_playing_or_paused(ctx):
-    voice_client = ctx.guild.voice_client
+def is_playing_or_paused(target):
+    guild = target.guild if hasattr(target, "guild") else target
+    voice_client = guild.voice_client
     return voice_client.is_playing() or voice_client.is_paused()
+
+
+async def safe_send(target, message):
+    """Sendet eine Nachricht bevorzugt in den Text-Chat des aktuellen Sprachkanals."""
+
+    # 1. Fall: target ist bereits ein Context (Slash Command)
+    if hasattr(target, "send") and not isinstance(target, discord.Guild):
+        try:
+            return await target.send(message)
+        except:
+            pass
+
+    # 2. Fall: Wir haben nur eine Guild (vom Event)
+    guild = target.guild if hasattr(target, "guild") else target
+    voice_client = guild.voice_client
+
+    # Wir versuchen in den Text-Chat des Sprachkanals zu schreiben, in dem der Bot ist
+    if voice_client and voice_client.channel:
+        try:
+            # Ja, man kann auf einem VoiceChannel-Objekt .send() aufrufen!
+            return await voice_client.channel.send(message)
+        except discord.Forbidden:
+            # Falls wir dort keine Rechte haben, Fallback auf Standard-Kanal
+            pass
+
+    # 3. Fallback: Erster schreibbarer Textkanal (wie zuvor)
+    for channel in guild.text_channels:
+        if channel.permissions_for(guild.me).send_messages:
+            return await channel.send(message)
+    return None
 
 
 class MusicCog(commands.Cog):
@@ -48,46 +79,71 @@ class MusicCog(commands.Cog):
 
 
 
-    def song_finished(self, error, ctx):
+    def song_finished(self, error, target):
+        guild = target.guild if hasattr(target, "guild") else target
         if error:
             print(f"Fehler beim Abspielen: {error}")
 
-        past_song = self.state.playback_info[ctx.guild.id]["file"]
+        past_song = self.state.playback_info[guild.id]["file"]
 
         # Hier löschen wir die gespeicherte Zeit für diesen Server
-        if ctx.guild.id in self.state.playback_info:
-            del self.state.playback_info[ctx.guild.id]
+        if self.state.playback_info[guild.id]["is_interrupted"]:
+            if self.state.first_stop:
+                self.state.first_stop = False
+                return
+        #elif guild.id in self.state.playback_info:
+        #    del self.state.playback_info[guild.id]
 
-        coro = self.handle_song_end(ctx, past_song)
+        coro = self.handle_song_end(target, past_song)
         asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
 
-    async def handle_song_end(self, ctx, past_song: str):
-        repeat = self.state.server_settings[ctx.guild.id]["repeat"]
+    async def handle_song_end(self, target, past_song: str):
+        guild = target.guild if hasattr(target, "guild") else target
+        guild_id = guild.id
+        info = self.state.playback_info.get(guild_id)
+
+        if info and info.get("is_interrupted"):
+
+            self.state.playback_info[guild.id]["is_interrupted"] = False
+            old_data = info.get("interrupted_data")
+            resume_time = info.get("resume_at")
+
+            if old_data:
+                await self.play_song(old_data["file"], target, guild.voice_client, resume_at=resume_time)
+                # Laut GPLUS DAS WICHTIGSTE WORT DES TAGES:
+                return
+
+        repeat = self.state.server_settings[guild.id]["repeat"]
 
         if repeat == "Single":
-            await self.play_song(past_song, ctx, ctx.guild.voice_client)
+            await self.play_song(past_song, target, guild.voice_client)
             if random.randint(0, 20) == 0 and past_song != "AbstinenzDerUte.mp3":
-                await ctx.send("Wird dir nicht langweilig?")
+                if "Smalltown Boy" in past_song:
+                    await safe_send(target, "Ist mal wieder typisch, Hohlmann")
+                else:
+                    await safe_send(target, "Wird dir nicht langweilig?")
         else:
             if repeat in ["All", "Shuffle"]:
                 self.state.past_songs.append(past_song)
 
             if self.state.music_cue:
-                await self.play_song(self.state.music_cue.popleft(), ctx, ctx.guild.voice_client)
+                await self.play_song(self.state.music_cue.popleft(), target, guild.voice_client)
             else:
                 if repeat == "None":
-                    await ctx.send("🛑 Die Wiedergabe ist zu Ende!")
+                    await safe_send(target, "🛑 Die Wiedergabe ist zu Ende!")
+                    if guild_id in self.state.playback_info:
+                        del self.state.playback_info[guild_id]
                 elif repeat in ["All","Shuffle"]:
                     self.state.music_cue = self.state.past_songs
                     self.state.past_songs = deque()
-                    await ctx.send("Wir wiederholen alles nochmal!")
+                    await safe_send(target, "Wir wiederholen alles nochmal!")
                     if repeat == "Shuffle":
                         random.shuffle(self.state.music_cue)
-                        await ctx.send("Zufällig!")
-                    await self.play_song(self.state.music_cue.popleft(), ctx, ctx.guild.voice_client)
+                        await safe_send(target, "Zufällig!")
+                    await self.play_song(self.state.music_cue.popleft(), target, guild.voice_client)
                 else:
                     message = f"Error: Ungültiger Repeat-Modus: {repeat}"
-                    await ctx.send(message)
+                    await safe_send(target, message)
                     print(message)
 
 
@@ -136,26 +192,40 @@ class MusicCog(commands.Cog):
         if is_playing_or_paused(guild):
             voice_client.stop()
 
+        before_args = f"-ss {resume_at}"
+
+        ffmpeg_options = {
+            'before_options': before_args,
+            'options': '-vn'
+        }
+
         full_path = os.path.join(self.MUSIC_DIR, best_match_file)
 
         song_info = self.state.get_track_info(best_match_file)
 
         duration = song_info["duration"]
 
+        old_data = self.state.playback_info.get(guild.id, {})
+
         # 2. Die Daten im "Gedächtnis" des Bots ablegen
-        self.state.playback_info[ctx.guild.id] = {
-            "start_time": time.time(),
+        new_data = {
+            "start_time": time.time() - resume_at,
             "duration": duration,
-            "name": best_match,
+            "name": song_info["title"],
             "file": best_match_file,
             "is_paused": False,
-            "pause_start": 0
+            "pause_start": 0,
+            "is_interrupted": old_data.get("is_interrupted", False),
+            "interrupted_data": old_data.get("interrupted_data", {}),
+            "resume_at": old_data.get("resume_at", 0),
         }
+
+        self.state.playback_info[guild.id] = new_data
 
         # 3. Das Lied starten und das 'after' Callback übergeben!
         # Wichtig: Wir nutzen lambda, um das 'ctx' an die Funktion mitzugeben
-        source = discord.FFmpegPCMAudio(full_path)
-        voice_client.play(source, after=lambda e: self.song_finished(e, ctx))
+        source = discord.FFmpegPCMAudio(full_path, **ffmpeg_options)
+        voice_client.play(source, after=lambda e: self.song_finished(e, ctx_or_guild))
 
         # Dauer hübsch formatieren (z.B. "3:45")
         mins, secs = divmod(int(duration), 60)

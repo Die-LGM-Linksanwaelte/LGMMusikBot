@@ -13,6 +13,9 @@ class StateCog(commands.Cog):
         self.past_songs = deque()
         self.music_cue = deque()
         self.track_cache = []
+        self.last_seen_erhabenheit = 0
+        self.first_stop = False
+
         self.MUSIC_DIR = "/home/lichtgott/Music/BotMusik/"
         self.PLAYLIST_DIR = "/home/lichtgott/Music/BotPlaylists"
 
