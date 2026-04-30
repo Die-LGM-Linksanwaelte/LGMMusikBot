@@ -67,19 +67,29 @@ class EasterEggsCog(commands.Cog):
         LICHTGOT_ID = 771375658235461652
         LOETGOTT_ID = 861587158594093056
         SUCKYSUCKY = "ErhabeneBegruesung.mp3"
-        COOLDOWN = 600
+        COOLDOWN = 1200
 
         if member.id not in [LICHTGOT_ID, LOETGOTT_ID]:
             return
 
-        def are_together_in(channel):
+        def are_together_now(channel):
             if not channel:
                 return False
             member_ids = [m.id for m in channel.members]
             return LICHTGOT_ID in member_ids and LOETGOTT_ID in member_ids
 
-        together_before = are_together_in(before.channel)
-        together_after = are_together_in(after.channel)
+        def were_together_before(channel, member_that_moved):
+            if not channel:
+                return False
+
+            member_ids = set(m.id for m in channel.members)
+            member_ids.add(member_that_moved.id)
+            return LOETGOTT_ID in member_ids and LICHTGOT_ID in member_ids
+
+
+        together_before = were_together_before(before.channel, member)
+        together_after = are_together_now(after.channel)
+        print(f"Zzuvor: {together_before} - danach: {together_after}")
 
         #Trennung
         if together_before and not together_after:
