@@ -69,25 +69,39 @@ class EasterEggsCog(commands.Cog):
         SUCKYSUCKY = "ErhabeneBegruesung.mp3"
         COOLDOWN = 600
 
-        channel = after.channel
-        if channel:
-            guild = member.guild
-            voice_client = guild.voice_client
+        if member.id not in [LICHTGOT_ID, LOETGOTT_ID]:
+            return
 
-            members_in_channel = [m.id for m in after.channel.members]
+        def are_together_in(channel):
+            if not channel:
+                return False
+            member_ids = [m.id for m in channel.members]
+            return LICHTGOT_ID in member_ids and LOETGOTT_ID in member_ids
 
-            if LICHTGOT_ID in members_in_channel and LOETGOTT_ID in members_in_channel:
-                now = time.time()
-                last_seen = self.state.last_seen_erhabenheit
+        together_before = are_together_in(before.channel)
+        together_after = are_together_in(after.channel)
 
-                if now - last_seen > COOLDOWN:
-                    self.state.last_seen_erhabenheit = now
+        #Trennung
+        if together_before and not together_after:
+            self.state.last_seen_erhabenheit = time.time()
+            print("💔 Die Erhabenen haben sich getrennt. Cooldown-Timer startet.")
+            return
 
-                    print(f"DIE ERHABENHEIT IST DA! Letztes mal war vor {int(now-last_seen)}s!")
-                    await self.trigger_greeting_interrupt(member.guild, channel, SUCKYSUCKY)
+        #Wiedervereinigung
+        if not together_before and together_after:
+            now = time.time()
+            last_sep = getattr(self.state, "last_seen_erhabenheit", 0)
 
-                else:
-                    self.state.last_seen_erhabenheit = now
+            if now - last_sep > COOLDOWN:
+                print(f"DIE ERHABENHEIT IST DA! Letztes mal war vor {int(now - last_sep)}s!")
+
+                self.state.last_seen_erhabenheit = now
+
+                await self.trigger_greeting_interrupt(member.guild, after.channel, SUCKYSUCKY)
+
+            else:
+                time_left = int(COOLDOWN - (now - last_sep))
+                print(f"🤫 Erhabenheit vereint, aber Cooldown läuft noch ({time_left}s übrig).")
 
     async def trigger_greeting_interrupt(self, guild, channel, song):
         state = self.state
