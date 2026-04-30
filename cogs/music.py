@@ -203,6 +203,7 @@ class MusicCog(commands.Cog):
             return
         self.state.music_cue.clear()
         self.state.server_settings[ctx.guild.id]["repeat"] = "None"
+        self.state.past_songs.clear()
         voice_client.stop()
         await ctx.send("RUHE IM GERICHTSAAL!")
 
@@ -228,6 +229,7 @@ class MusicCog(commands.Cog):
     async def repeat_none(self, ctx):
         if ctx.guild.id in self.state.server_settings:
             self.state.server_settings[ctx.guild.id]["repeat"] = "None"
+            self.state.past_songs.clear()
             await ctx.send("Es wiederholt sich nichts")
         else:
             await ctx.send("Es gibt keine Session, zu der der Repeat-modus geändert werden könnte.")
@@ -253,6 +255,7 @@ class MusicCog(commands.Cog):
     async def repeat_none(self, ctx):
         if ctx.guild.id in self.state.server_settings:
             self.state.server_settings[ctx.guild.id]["repeat"] = "Single"
+            self.state.past_songs.clear()
             await ctx.send(f"Es wiederholt sich {self.state.playback_info[ctx.guild.id]['name']}")
         else:
             await ctx.send("Es gibt keine Session, zu der der Repeat-modus geändert werden könnte.")
