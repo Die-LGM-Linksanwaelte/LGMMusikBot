@@ -1,3 +1,7 @@
+from datetime import datetime, timedelta, timezone
+
+import discord
+from discord.ext import tasks
 import asyncio
 import random
 import time
@@ -9,6 +13,57 @@ class EasterEggsCog(commands.Cog):
         self.ABSTINENZ_ID = 1495885269394784317
         self.PENIS_ID = 1495869135622508615
         self.state = bot.get_cog("StateCog")
+        self.EVENT_NAME = self.state.NEVER_COMING_EVENT_NAME
+        self.USE_MANUAL_TOGGLE = self.state.USE_MANUAL_ERHABENHEIT_TOGGLE
+        self.pflaumenbaum_loop.start()
+
+
+    def cog_unload(self):
+        self.pflaumenbaum_loop.cancel()
+
+    @tasks.loop(minutes=1)
+    async def pflaumenbaum_loop(self):
+
+        await self.bot.wait_until_ready()
+
+        new_start = datetime.now(timezone.utc) + timedelta(days=7)
+        new_end = new_start + timedelta(seconds=42)
+
+        for guild in self.bot.guilds:
+
+            existing_event = discord.utils.get(guild.scheduled_events, name=self.EVENT_NAME)
+
+            if existing_event:
+                try:
+                    await existing_event.edit(
+                        start_time=new_start,
+                        end_time=new_end,
+                        reason="Wir brauchen noch ein bisschen Vorberietungszeit, diesesmal wirklich das letzte Mal"
+                    )
+                    print(f"[{guild.name}] Pflaumenbaum-Wahl erfolgreich um eine Woche verschoben!")
+
+                except discord.Forbidden:
+                    print(f"[{guild.name}] Mir fehlen die Rechte, um Events zu bearbeiten!")
+                except discord.HTTPException as e:
+                    print(f"[{guild.name}] API Fehler beim Verschieben: {e}")
+
+            else:
+                try:
+                    await guild.create_scheduled_event(
+                        name=self.EVENT_NAME,
+                        description="WIR MACHENS! Endlich wählen wir den Gott des Pflaumenbaums",
+                        start_time=new_start,
+                        end_time=new_end,
+                        entity_type=discord.EntityType.external,
+                        location="Unter dem großen Pflaumenbaum",
+                        privacy_level=discord.PrivacyLevel.guild_only
+                    )
+                    print(f"[{guild.name}] Pflaumenbaum-Event wurde neu erschaffen!")
+                except Exception as e:
+                    print(f"[{guild.name}] Fehler beim Erstellen des Events: {e}")
+
+
+
 
 
     @commands.command()
@@ -91,27 +146,53 @@ class EasterEggsCog(commands.Cog):
         together_after = are_together_now(after.channel)
         print(f"Zzuvor: {together_before} - danach: {together_after}")
 
-        #Trennung
-        if together_before and not together_after:
-            self.state.last_seen_erhabenheit = time.time()
-            print("💔 Die Erhabenen haben sich getrennt. Cooldown-Timer startet.")
-            return
+        # ==========================================
+        # NEUE LOGIK: Manueller Toggle (!glue)
+        # ==========================================
+        if self.USE_MANUAL_TOGGLE:  # (Oder einfach nur USE_MANUAL_TOGGLE, je nachdem wo du es definiert hast)
 
-        #Wiedervereinigung
-        if not together_before and together_after:
-            now = time.time()
-            last_sep = getattr(self.state, "last_seen_erhabenheit", 0)
+            # Sicherheits-Check: Falls der Bot neustartet und die Variable noch nicht da ist
+            if not hasattr(self.state, "is_erhabenheit"):
+                self.state.is_erhabenheit = False
 
-            if now - last_sep > COOLDOWN:
-                print(f"DIE ERHABENHEIT IST DA! Letztes mal war vor {int(now - last_sep)}s!")
+            # Ihr seid jetzt zusammen
+            if not together_before and together_after:
+                # Ist die Erhabenheit inaktiv? Dann los!
+                if not self.state.is_erhabenheit:
+                    print("🎤 Erhabenheit vereint (Toggle-Modus)! Starte Begrüßung.")
 
-                self.state.last_seen_erhabenheit = now
+                    # Status auf aktiv setzen, damit es nicht nochmal triggert
+                    self.state.is_erhabenheit = True
 
-                await self.trigger_greeting_interrupt(member.guild, after.channel, SUCKYSUCKY)
+                    await self.trigger_greeting_interrupt(member.guild, after.channel, SUCKYSUCKY)
+                else:
+                    print("🤫 Erhabenheit ist schon aktiv. Warte auf !glue.")
 
-            else:
-                time_left = int(COOLDOWN - (now - last_sep))
-                print(f"🤫 Erhabenheit vereint, aber Cooldown läuft noch ({time_left}s übrig).")
+        # ==========================================
+        # ALTE LOGIK: Cooldown Timer
+        # ==========================================
+        else:
+            #Trennung
+            if together_before and not together_after:
+                self.state.last_seen_erhabenheit = time.time()
+                print("💔 Die Erhabenen haben sich getrennt. Cooldown-Timer startet.")
+                return
+
+            #Wiedervereinigung
+            if not together_before and together_after:
+                now = time.time()
+                last_sep = getattr(self.state, "last_seen_erhabenheit", 0)
+
+                if now - last_sep > COOLDOWN:
+                    print(f"DIE ERHABENHEIT IST DA! Letztes mal war vor {int(now - last_sep)}s!")
+
+                    self.state.last_seen_erhabenheit = now
+
+                    await self.trigger_greeting_interrupt(member.guild, after.channel, SUCKYSUCKY)
+
+                else:
+                    time_left = int(COOLDOWN - (now - last_sep))
+                    print(f"🤫 Erhabenheit vereint, aber Cooldown läuft noch ({time_left}s übrig).")
 
     async def trigger_greeting_interrupt(self, guild, channel, song):
         state = self.state

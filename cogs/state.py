@@ -14,8 +14,11 @@ class StateCog(commands.Cog):
         self.music_cue = deque()
         self.track_cache = []
         self.last_seen_erhabenheit = 0
+        self.is_erhabenheit = False
         self.first_stop = False
 
+        self.NEVER_COMING_EVENT_NAME = "Die Wahl vom Gott des Pflaumenbaums"
+        self.USE_MANUAL_ERHABENHEIT_TOGGLE = True
         self.MUSIC_DIR = "/music"
         self.PLAYLIST_DIR = "/playlists"
 
