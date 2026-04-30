@@ -237,6 +237,29 @@ class EasterEggsCog(commands.Cog):
         musicCog = self.bot.get_cog("MusicCog")
         await musicCog.play_song(song, guild, guild.voice_client)
 
+    @commands.command(name="glue")
+    @commands.has_role("Owner")
+    async def glue_command(self, ctx):
+        USER_A_ID = 123456789  # Deine ID
+        USER_B_ID = 987654321  # Lötgott ID
+        FAREWELL_SONG = "I Glued My Balls to My Butthole Again.mp3"
+
+        # Nur ihr beide dürft den Befehl nutzen
+        if ctx.author.id not in [USER_A_ID, USER_B_ID]:
+            return
+
+        if not ctx.author.voice or not ctx.author.voice.channel:
+            await ctx.send("Du musst in einem Sprachkanal sein, um dich zu verabschieden!")
+            return
+
+        # 1. Status auf inaktiv setzen
+        self.state.is_erhabenheit = False
+        await ctx.send("👋 Die Erhabenheit verabschiedet sich... bis zum nächsten Mal!")
+
+        # 2. VL abspielen (Wir nutzen einfach unseren perfekten Interrupt-Mechanismus!)
+        await self.trigger_greeting_interrupt(ctx.guild, ctx.author.voice.channel, FAREWELL_SONG)
+
+
 
 async def setup(bot):
     await bot.add_cog(EasterEggsCog(bot))
