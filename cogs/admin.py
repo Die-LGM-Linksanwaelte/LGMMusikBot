@@ -30,6 +30,47 @@ class AdminCog(commands.Cog):
             # Wenn du einen Syntax-Fehler im Code hast, zeigt er dir hier direkt an, wo!
             await ctx.send(f"🔥 Fehler im Code von `{extension}`:\n```py\n{e}\n```")
 
+    @commands.command(name="sync", hidden=True)
+    @commands.has_role("Eigentümer")
+    async def sync_command(self, ctx, scope: str = "local"):
+        if scope == "global":
+            await ctx.send("Ich synchronisiere die Slah-Befehle global!")
+            synced = await self.bot.tree.sync()
+            await ctx.send(f"Es wurden {len(synced)} Slah-Befehle global synchronisiert!")
+
+        elif scope == "local":
+            await ctx.send("Ich synchronisiere die Slah-Befehle lokal!")
+
+            self.bot.tree.copy_global_to(guild=ctx.guild)
+            synced = await self.bot.tree.sync(guild=ctx.guild)
+
+            await ctx.send(f"Es wurden {len(synced)} Slah-Befehle lokal synchronisiert!")
+
+            # --- NEU: DER BEREINIGUNGS-MODUS ---
+        elif scope == "clear":
+            await ctx.send("🧹 Lösche alle globalen Befehle, um Duplikate zu vernichten...")
+
+            # 1. Leert die globale Warteschlange im Bot
+            self.bot.tree.clear_commands(guild=None)
+
+            # 2. Schickt diese "leere" Liste an Discord (löscht die alten)
+            await self.bot.tree.sync()
+
+            await ctx.send(
+                "✅ Globale Schublade geleert! Mache jetzt einen `!sync local` und lade Discord mit Strg+R neu.")
+
+
+    @commands.command(name="rebuild_cache", hidden=True)
+    @commands.has_role("Eigentümer")
+    async def rebuild_cache(self, ctx):
+        try:
+            await self.state.build_track_cache()
+            await ctx.send("Cache wurde neu gebaut!")
+        except Exception as e:
+            await ctx.send(f"Fehler beim rebuilden des Caches: \n {e}")
+            print(f"Fehler beim rebuilden des Caches: {e}")
+
+
     @commands.command()
     @commands.has_permissions(move_members=True)
     async def move_all(self, ctx, *, target_input: str):
@@ -81,36 +122,6 @@ class AdminCog(commands.Cog):
                 pass
 
         await ctx.send(f"✅ Erledigt! {moved_count} Leute nach {target_channel.name} verschoben.")
-
-
-    @commands.command(name="sync", hidden=True)
-    @commands.has_role("Eigentümer")
-    async def sync_command(self, ctx, scope: str = "local"):
-        if scope == "global":
-            await ctx.send("Ich synchronisiere die Slah-Befehle global!")
-            synced = await self.bot.tree.sync()
-            await ctx.send(f"Es wurden {len(synced)} Slah-Befehle global synchronisiert!")
-
-        elif scope == "local":
-            await ctx.send("Ich synchronisiere die Slah-Befehle lokal!")
-
-            self.bot.tree.copy_global_to(guild=ctx.guild)
-            synced = await self.bot.tree.sync(guild=ctx.guild)
-
-            await ctx.send(f"Es wurden {len(synced)} Slah-Befehle lokal synchronisiert!")
-
-            # --- NEU: DER BEREINIGUNGS-MODUS ---
-        elif scope == "clear":
-            await ctx.send("🧹 Lösche alle globalen Befehle, um Duplikate zu vernichten...")
-
-            # 1. Leert die globale Warteschlange im Bot
-            self.bot.tree.clear_commands(guild=None)
-
-            # 2. Schickt diese "leere" Liste an Discord (löscht die alten)
-            await self.bot.tree.sync()
-
-            await ctx.send(
-                "✅ Globale Schublade geleert! Mache jetzt einen `!sync local` und lade Discord mit Strg+R neu.")
 
     @commands.command(name="debug", hidden=True)
     @commands.has_role("Eigentümer")

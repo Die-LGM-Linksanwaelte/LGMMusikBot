@@ -23,18 +23,12 @@ class MusicCog(commands.Cog):
         self.MUSIC_DIR = self.state.MUSIC_DIR
 
     async def play_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
-        try:
-            available_files = [f for f in os.listdir(self.MUSIC_DIR) if f.endswith(('.mp3', '.flac', '.wav', '.ogg'))]
-            files_without_ext = [os.path.splitext(f)[0] for f in available_files]
+        matches = [
+            app_commands.Choice(name=t["display"][:100], value=t["path"])
+            for t in self.state.track_cache if current.lower() in t["search"]
+        ]
 
-            matches = [f for f in files_without_ext if current.lower() in f.lower()]
-
-            return [
-                app_commands.Choice(name=match, value=match)
-                for match in matches[:25]
-            ]
-        except FileNotFoundError:
-            return []
+        return matches[:25]
 
 
     def fetch_song(self, track):
@@ -111,6 +105,11 @@ class MusicCog(commands.Cog):
 
         best_match, best_match_file = self.fetch_song(track)
 
+        song_name = self.state.get_track_info(best_match_file)["title"]
+        song_artist = self.state.get_track_info(best_match_file)["artist"]
+
+        song_data = f"{song_name} von {song_artist}"
+
 
         if best_match is None:
             await ctx.send("Was soll denn das für ein Lied sein?!?!")
@@ -118,7 +117,7 @@ class MusicCog(commands.Cog):
 
         if is_playing_or_paused(ctx):
             self.state.music_cue.append(best_match_file)
-            await ctx.send(f"{best_match} ist in der Cue! Freu dich du HS")
+            await ctx.send(f"{song_data} ist in der Cue! Freu dich du HS")
             return
 
         #Weil ja dieser Teil nur drankommt, wenn bisher noch nichts gespielt wurde (aka es ist eine neue Session), muss
@@ -128,27 +127,20 @@ class MusicCog(commands.Cog):
         }
 
         mins, secs = await self.play_song(best_match_file, ctx, voice_client)
-        await ctx.send(f"PENIS! Ich spiele jetzt: {best_match} ({mins}:{secs:02d})")
+        await ctx.send(f"PENIS! Ich spiele jetzt: {song_data} ({mins}:{secs:02d})")
 
-    async def play_song(self, best_match_file: str, ctx, voice_client):
-        best_match = os.path.splitext(best_match_file)[0]
+    async def play_song(self, best_match_file: str, ctx_or_guild, voice_client, resume_at=0):
+        guild = ctx_or_guild.guild if hasattr(ctx_or_guild, "guild") else ctx_or_guild
 
-        if is_playing_or_paused(ctx):
+
+        if is_playing_or_paused(guild):
             voice_client.stop()
 
         full_path = os.path.join(self.MUSIC_DIR, best_match_file)
 
-        # 1. Dauer des Liedes per ffprobe auslesen (in Sekunden)
-        try:
-            # Führt einen shell-befehl aus, der nur die nackte Zahl zurückgibt
-            result = subprocess.run([
-                "ffprobe", "-v", "error", "-show_entries",
-                "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", full_path
-            ], stdout=subprocess.PIPE, text=True)
+        song_info = self.state.get_track_info(best_match_file)
 
-            duration = float(result.stdout.strip())
-        except Exception as _:
-            duration = 0  # Fallback, falls was schiefgeht
+        duration = song_info["duration"]
 
         # 2. Die Daten im "Gedächtnis" des Bots ablegen
         self.state.playback_info[ctx.guild.id] = {
