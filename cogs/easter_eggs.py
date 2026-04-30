@@ -238,7 +238,7 @@ class EasterEggsCog(commands.Cog):
         await musicCog.play_song(song, guild, guild.voice_client)
 
     @commands.command(name="glue")
-    @commands.has_role("Owner")
+    @commands.has_role("Eigentümer")
     async def glue_command(self, ctx):
         USER_A_ID = 123456789  # Deine ID
         USER_B_ID = 987654321  # Lötgott ID
