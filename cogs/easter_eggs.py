@@ -202,12 +202,21 @@ class EasterEggsCog(commands.Cog):
         resume_time = 0
         #was_playing = False
 
-        if guild.voice_client and guild.voice_client.is_playing():
+        is_actually_playing = guild.voice_client and guild.voice_client.is_playing()
+
+        if is_actually_playing and current_info:
             #was_playing = True
 
-            start_time = current_info.get("start_time", time.time())
-            resume_time = time.time() - start_time
-            old_data_copy = current_info.copy()
+            if current_info.get("is_interrupted"):
+
+                old_data_copy = current_info.get("interrupted_data")
+                resume_time = current_info.get("resume_at", 0)
+                print("Interrupt im Interrupt! Rettet das Original-Lied.")
+
+            else:
+                start_time = current_info.get("start_time", time.time())
+                resume_time = time.time() - start_time
+                old_data_copy = current_info.copy()
 
             #Musik stoppen
             state.first_stop = True
@@ -229,7 +238,7 @@ class EasterEggsCog(commands.Cog):
             #"is_paused": False,
             #"pause_start": 0,
             "is_interrupted": True,
-            "interrupted_data": current_info,
+            "interrupted_data": old_data_copy,
             "resume_at": resume_time,
         }
 
@@ -240,7 +249,7 @@ class EasterEggsCog(commands.Cog):
     @commands.command(name="glue")
     @commands.has_role("Eigentümer")
     async def glue_command(self, ctx):
-        FAREWELL_SONG = "I Glued My Balls to My Butthole Again.mp3"
+        FAREWELL_SONG = "Glue.mp3"
 
         # Nur ihr beide dürft den Befehl nutzen
         if ctx.author.id not in [self.LICHTGOT_ID, self.LOETGOTT_ID]:

@@ -132,6 +132,8 @@ class AdminCog(commands.Cog):
         await ctx.send(self.state.past_songs)
         await ctx.send(self.state.music_cue)
         await ctx.send(datetime.fromtimestamp(self.state.last_seen_erhabenheit).strftime('%H:%M:%S, %d.%m.%Y'))
+        await ctx.send(self.state.is_erhabenheit)
+        await ctx.send(self.state.USE_MANUAL_ERHABENHEIT_TOGGLE)
         await ctx.send(self.state.first_stop)
 
 

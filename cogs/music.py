@@ -108,6 +108,9 @@ class MusicCog(commands.Cog):
             old_data = info.get("interrupted_data")
             resume_time = info.get("resume_at")
 
+            self.state.playback_info[guild_id]["interrupted_data"] = {}
+            self.state.playback_info[guild_id]["resume_at"] = 0
+
             if old_data:
                 await self.play_song(old_data["file"], target, guild.voice_client, resume_at=resume_time)
                 # Laut GPLUS DAS WICHTIGSTE WORT DES TAGES:
