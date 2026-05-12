@@ -23,7 +23,7 @@ class LgmMusicBot(commands.Bot):
 
     async def on_ready(self):
         print(f"Ich bin der erhabene {self.user}!!!")
-        await bot.change_presence(status=discord.Status.online, activity=discord.Game(name="mit seinem Penis"))
+        await bot.change_presence(status=discord.Status.online, activity=discord.Game(name="mit JPKs Penis"))
 
 
 if __name__ == "__main__":
