@@ -7,8 +7,6 @@ import random
 import time
 from discord.ext import commands
 
-original_nicknames = {}
-
 class EasterEggsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -314,8 +312,7 @@ class EasterEggsCog(commands.Cog):
     @commands.has_role("Eigentümer")
     async def rinda_chaos_command(self, ctx):
         """Benennt alle Server-Mitglieder in 'Rinda x' (mit irrationaler Zahl) um."""
-        global original_nicknames
-        original_nicknames.clear()
+        self.state.original_nicknames.clear()
 
         count = 0
         async for member in ctx.guild.fetch_members():
@@ -325,7 +322,7 @@ class EasterEggsCog(commands.Cog):
 
             try:
                 # Alten Nickname speichern (oder den aktuellen Global Name / Benutzernamen, falls kein Nickname da ist)
-                original_nicknames[member.id] = member.nick if member.nick else member.name
+                self.state.original_nicknames[member.id] = member.nick if member.nick else member.name
 
                 new_nick = self.generate_irrational_string()
 
@@ -348,14 +345,13 @@ class EasterEggsCog(commands.Cog):
     @commands.command(name="rinda_heal")
     @commands.has_role("Eigentümer")
     async def rinda_heal(self, ctx):
-        global original_nicknames
 
-        if not original_nicknames:
+        if not self.state.original_nicknames:
             await ctx.send("Es gibt keine gespeicherten Nicknames zum Wiederherstellen!")
             return
 
         count = 0
-        for member_id, old_nick in original_nicknames.items():
+        for member_id, old_nick in self.state.original_nicknames.items():
             member = ctx.guild.get_member(member_id)
             if member:
                 try:
@@ -369,7 +365,7 @@ class EasterEggsCog(commands.Cog):
                 except Exception as e:
                     print(e)
 
-        original_nicknames.clear()
+        self.state.original_nicknames.clear()
         await ctx.send(f"Ordnung wiederhergestellt. {count} Personen haben ihre Namen zurück!")
 
     def generate_irrational_string(self):
