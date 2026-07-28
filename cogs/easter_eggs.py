@@ -7,6 +7,8 @@ import random
 import time
 from discord.ext import commands
 
+original_nicknames = {}
+
 class EasterEggsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -121,6 +123,10 @@ class EasterEggsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        await self.begrudges_funktion(member, before, after)
+        await self.geaechteter(member, before, after)
+
+    async def begrudges_funktion(self, member, before, after):
         SUCKYSUCKY = "ErhabeneBegruesung.mp3"
         COOLDOWN = 1200
 
@@ -144,7 +150,7 @@ class EasterEggsCog(commands.Cog):
 
         together_before = were_together_before(before.channel, member)
         together_after = are_together_now(after.channel)
-        print(f"Zzuvor: {together_before} - danach: {together_after}")
+        print(f"Zuvor: {together_before} - danach: {together_after}")
 
         # ==========================================
         # NEUE LOGIK: Manueller Toggle (!glue)
@@ -246,6 +252,42 @@ class EasterEggsCog(commands.Cog):
         musicCog = self.bot.get_cog("MusicCog")
         await musicCog.play_song(song, guild, guild.voice_client)
 
+    async def geaechteter(self, member, before, after):
+        OUTLAW_ROLE_NAME = "Geächteter"
+
+        if before.channel != after.channel and after.channel is not None:
+
+            # Prüfen, ob der User die Rolle "Der geächtete" besitzt
+            has_outlaw_role = any(role.name == OUTLAW_ROLE_NAME for role in member.roles)
+
+            if has_outlaw_role:
+                guild = member.guild
+                current_channel = after.channel
+
+                # Alle verfügbaren Voice-Channels auf dem Server ermitteln (außer dem, in den er gerade reingekommen ist)
+                available_channels = [c for c in guild.voice_channels if c != current_channel]
+
+                if not available_channels:
+                    print("Es gibt keinen anderen Voice-Channel, in den man verschieben könnte!")
+                    return
+
+                # Wähle einen zufälligen Ziel-Channel aus
+                target_channel = random.choice(available_channels)
+
+                # Alle anderen Mitglieder im selben Channel (außer dem Geächteten selbst und dem Bot) einlesen
+                victims = [m for m in current_channel.members if m != member]
+
+                if victims:
+                    print(
+                        f"Geächteter {member.name} hat {current_channel.name} betreten. Jage alle nach {target_channel.name}...")
+                    for victim in victims:
+                        try:
+                            await victim.move_to(target_channel)
+                        except discord.Forbidden:
+                            print(f"Keine Berechtigung, {victim.name} zu verschieben.")
+                        except Exception as e:
+                            print(f"Fehler beim Verschieben von {victim.name}: {e}")
+
     @commands.command(name="glue")
     @commands.has_role("Eigentümer")
     async def glue_command(self, ctx):
@@ -265,6 +307,94 @@ class EasterEggsCog(commands.Cog):
 
         # 2. VL abspielen (Wir nutzen einfach unseren perfekten Interrupt-Mechanismus!)
         await self.trigger_greeting_interrupt(ctx.guild, ctx.author.voice.channel, FAREWELL_SONG)
+
+
+
+    @commands.command(name="rinda_chaos")
+    @commands.has_role("Eigentümer")
+    async def rinda_chaos_command(self, ctx):
+        """Benennt alle Server-Mitglieder in 'Rinda x' (mit irrationaler Zahl) um."""
+        global original_nicknames
+        original_nicknames.clear()
+
+        count = 0
+        async for member in ctx.guild.fetch_members():
+            # Überspringe den Bot selbst oder den Serverowner (falls der Bot ihn nicht ändern kann)
+            if member == ctx.guild.owner or member.bot:
+                continue
+
+            try:
+                # Alten Nickname speichern (oder den aktuellen Global Name / Benutzernamen, falls kein Nickname da ist)
+                original_nicknames[member.id] = member.nick if member.nick else member.name
+
+                new_nick = self.generate_irrational_string()
+
+                # Discord-Nicknames haben ein Limit von 32 Zeichen.
+                # Falls der Term zu lang wird, kürzen wir ihn ab oder fangen es ab.
+                if len(new_nick) > 32:
+                    new_nick = new_nick[:32]
+
+                await member.edit(nick=new_nick)
+                count += 1
+            except discord.Forbidden:
+                # Falls die Rolle des Users über dem des Bots steht
+                continue
+            except Exception as e:
+                print(e)
+
+        await ctx.send(f"Chaos perfekt! {count} Opfer wurden erfolgreich in Rinda verwandelt.")
+
+
+    @commands.command(name="rinda_heal")
+    @commands.has_role("Eigentümer")
+    async def rinda_heal(self, ctx):
+        global original_nicknames
+
+        if not original_nicknames:
+            await ctx.send("Es gibt keine gespeicherten Nicknames zum Wiederherstellen!")
+            return
+
+        count = 0
+        for member_id, old_nick in original_nicknames.items():
+            member = ctx.guild.get_member(member_id)
+            if member:
+                try:
+                    if old_nick == member.name:
+                        await member.edit(nick=None)
+                    else:
+                        await member.edit(nick=old_nick)
+                    count += 1
+                except discord.Forbidden:
+                    continue
+                except Exception as e:
+                    print(e)
+
+        original_nicknames.clear()
+        await ctx.send(f"Ordnung wiederhergestellt. {count} Personen haben ihre Namen zurück!")
+
+    def generate_irrational_string(self):
+        """Generiert einen echten irrationalen Term als lesbaren String."""
+        constants = ["π", "e", "√2", "√3", "√5"]
+
+        # Verschiedene Templates für den mathematischen Ausdruck
+        templates = [
+            lambda c1, c2, f: f"Rinda {c1} * {f}",
+            lambda c1, c2, f: f"Rinda {f} * {c1}",
+            lambda c1, c2, f: f"Rinda {c1} / {c2} * {f}",
+            lambda c1, c2, f: f"Rinda ({c1} / {c2}) * {f}",
+            lambda c1, c2, f: f"Rinda {c1} * {c2} * {f}"
+        ]
+
+        c1 = random.choice(constants)
+        c2 = random.choice(constants)
+        # Damit nicht durch dieselbe Konstante geteilt wird (sieht sonst langweilig aus)
+        while c2 == c1:
+            c2 = random.choice(constants)
+
+        factor = round(random.uniform(1.1, 9.9), 2)
+
+        chosen_template = random.choice(templates)
+        return chosen_template(c1, c2, factor)
 
 
 
