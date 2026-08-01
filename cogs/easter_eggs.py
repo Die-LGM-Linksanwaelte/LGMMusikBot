@@ -312,32 +312,37 @@ class EasterEggsCog(commands.Cog):
     @commands.has_role("Eigentümer")
     async def rinda_chaos_command(self, ctx):
         """Benennt alle Server-Mitglieder in 'Rinda x' (mit irrationaler Zahl) um."""
-        self.state.original_nicknames.clear()
+        #self.state.original_nicknames.clear()
+        #Ungünstig, wenn man zweimal rinda_chaos aufruft, und alle nicknames verloren gehen.
+        if self.state.original_nicknames:
+            await ctx.send("Rinda Chaos ist noch aktiv! Rufe erst rinda_heal auf!")
+            return
 
-        count = 0
-        async for member in ctx.guild.fetch_members():
-            # Überspringe den Bot selbst oder den Serverowner (falls der Bot ihn nicht ändern kann)
-            if member == ctx.guild.owner or member.bot:
-                continue
+        async with ctx.typing():
+            count = 0
+            async for member in ctx.guild.fetch_members():
+                # Überspringe den Bot selbst oder den Serverowner (falls der Bot ihn nicht ändern kann)
+                if member == ctx.guild.owner or member.bot:
+                    continue
 
-            try:
-                # Alten Nickname speichern (oder den aktuellen Global Name / Benutzernamen, falls kein Nickname da ist)
-                self.state.original_nicknames[member.id] = member.nick if member.nick else member.name
+                try:
+                    # Alten Nickname speichern (oder den aktuellen Global Name / Benutzernamen, falls kein Nickname da ist)
+                    self.state.original_nicknames[member.id] = member.nick if member.nick else member.name
 
-                new_nick = self.generate_irrational_string()
+                    new_nick = self.generate_irrational_string()
 
-                # Discord-Nicknames haben ein Limit von 32 Zeichen.
-                # Falls der Term zu lang wird, kürzen wir ihn ab oder fangen es ab.
-                if len(new_nick) > 32:
-                    new_nick = new_nick[:32]
+                    # Discord-Nicknames haben ein Limit von 32 Zeichen.
+                    # Falls der Term zu lang wird, kürzen wir ihn ab oder fangen es ab.
+                    if len(new_nick) > 32:
+                        new_nick = new_nick[:32]
 
-                await member.edit(nick=new_nick)
-                count += 1
-            except discord.Forbidden:
-                # Falls die Rolle des Users über dem des Bots steht
-                continue
-            except Exception as e:
-                print(e)
+                    await member.edit(nick=new_nick)
+                    count += 1
+                except discord.Forbidden:
+                    # Falls die Rolle des Users über dem des Bots steht
+                    continue
+                except Exception as e:
+                    print(e)
 
         await ctx.send(f"Chaos perfekt! {count} Opfer wurden erfolgreich in Rinda verwandelt.")
 
@@ -350,22 +355,23 @@ class EasterEggsCog(commands.Cog):
             await ctx.send("Es gibt keine gespeicherten Nicknames zum Wiederherstellen!")
             return
 
-        count = 0
-        for member_id, old_nick in self.state.original_nicknames.items():
-            member = ctx.guild.get_member(member_id)
-            if member:
-                try:
-                    if old_nick == member.name:
-                        await member.edit(nick=None)
-                    else:
-                        await member.edit(nick=old_nick)
-                    count += 1
-                except discord.Forbidden:
-                    continue
-                except Exception as e:
-                    print(e)
+        async with ctx.typing():
+            count = 0
+            for member_id, old_nick in self.state.original_nicknames.items():
+                member = ctx.guild.get_member(member_id)
+                if member:
+                    try:
+                        if old_nick == member.name:
+                            await member.edit(nick=None)
+                        else:
+                            await member.edit(nick=old_nick)
+                        count += 1
+                    except discord.Forbidden:
+                        continue
+                    except Exception as e:
+                        print(e)
 
-        self.state.original_nicknames.clear()
+            self.state.original_nicknames.clear()
         await ctx.send(f"Ordnung wiederhergestellt. {count} Personen haben ihre Namen zurück!")
 
     def generate_irrational_string(self):
