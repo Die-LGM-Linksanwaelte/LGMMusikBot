@@ -1,0 +1,110 @@
+# from discord.ext import voice_recv, commands
+# import asyncio
+# import discord
+# import wave
+#
+# original_decode = discord.opus.Decoder.decode
+#
+# def safe_decode(self, data, *args, **kwargs):
+#     try:
+#         return original_decode(self, data, *args, **kwargs)
+#     except discord.opus.OpusError as e:
+#         # Bei fehlerhaften Paketen: 3840 Bytes Nullen (20ms Stille)
+#         return b'\x00' * 3840
+#
+# # Decoder-Funktion mit robuster Fehlerbehandlung absichern
+# discord.opus.Decoder.decode = safe_decode
+#
+#
+# class SmartUserSink(voice_recv.AudioSink):
+#     def __init__(self, target_user, filename):
+#         super().__init__()
+#         self.target_user_id = target_user.id
+#         self.filename = filename
+#
+#         self.file = wave.open(filename, 'wb')
+#         self.file.setnchannels(2)
+#         self.file.setsampwidth(2)
+#         self.file.setframerate(48000)
+#
+#         self.last_timestamp = None
+#
+#     def wants_opus(self):
+#         return False
+#
+#     def write(self, user, data):
+#         if user is None or user.id != self.target_user_id:
+#             return
+#
+#         current_timestamp = data.packet.timestamp
+#
+#         if self.last_timestamp is not None:
+#             timestamp_diff = current_timestamp - self.last_timestamp
+#
+#             # Out-of-Order UDP Pakete verwerfen / 32-Bit Rollover korrigieren
+#             if timestamp_diff < 0:
+#                 if timestamp_diff > -2147483648:
+#                     return
+#                 else:
+#                     timestamp_diff += 2 ** 32
+#
+#             missing_samples = timestamp_diff - 960
+#
+#             if missing_samples > 0:
+#                 missing_bytes = missing_samples * 4
+#                 if missing_bytes > 48000 * 4 * 10:
+#                     missing_bytes = 48000 * 4 * 10
+#                 self.file.writeframes(b'\x00' * missing_bytes)
+#
+#         self.file.writeframes(data.pcm)
+#         self.last_timestamp = current_timestamp
+#
+#     def cleanup(self):
+#         if hasattr(self, 'file') and self.file:
+#             self.file.close()
+#
+#
+# class RecordingCog(commands.Cog):
+#
+#     def __init__(self, bot):
+#         self.bot = bot
+#
+#
+#     @commands.command(name="test_clip")
+#     async def test_clip(self, ctx):
+#         if not ctx.author.voice or not ctx.author.voice.channel:
+#             await ctx.send("Du musst in einem Sprachkanal sein!")
+#             return
+#
+#         channel = ctx.author.voice.channel
+#
+#         if ctx.guild.voice_client:
+#             await ctx.guild.voice_client.disconnect()
+#
+#         try:
+#             vc = await channel.connect(cls=voice_recv.VoiceRecvClient)
+#         except discord.ClientException as e:
+#             await ctx.send(f"Fehler beim Verbinden: {e}")
+#             return
+#
+#         await ctx.send("Audioaufnahme gestartet (10 Sekunden)...")
+#
+#         filename = "clip_test.wav"
+#         sink = SmartUserSink(ctx.author, filename)
+#
+#         vc.listen(sink)
+#         await asyncio.sleep(10)
+#
+#         vc.stop_listening()
+#         await vc.disconnect()
+#         sink.cleanup()
+#         await asyncio.sleep(0.5)
+#
+#         try:
+#             await ctx.send("Aufnahme abgeschlossen:", file=discord.File(filename))
+#         except Exception as e:
+#             await ctx.send(f"Fehler bei der Aufnahme: {e}")
+#
+#
+# async def setup(bot):
+#     await bot.add_cog(RecordingCog(bot))

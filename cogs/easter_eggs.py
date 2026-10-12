@@ -1,0 +1,388 @@
+from datetime import datetime, timedelta, timezone
+
+import discord
+from discord.ext import tasks
+import asyncio
+import random
+import time
+from discord.ext import commands
+import config
+
+class EasterEggsCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.ABSTINENZ_ID = config.ABSTINENZ_CHANNEL_ID
+        self.QUOTE_CHANNEL_ID = config.QUOTE_CHANNEL_ID
+        self.USER_ID_1 = config.USER_ID_1
+        self.USER_ID_2 = config.USER_ID_2
+        self.LICHTGOT_ID = self.USER_ID_1
+        self.LOETGOTT_ID = self.USER_ID_2
+        self.state = bot.get_cog("StateCog")
+        self.EVENT_NAME = self.state.NEVER_COMING_EVENT_NAME
+        self.USE_MANUAL_TOGGLE = self.state.USE_MANUAL_ERHABENHEIT_TOGGLE
+        self.pflaumenbaum_loop.start()
+
+
+    def cog_unload(self):
+        self.pflaumenbaum_loop.cancel()
+
+    @tasks.loop(minutes=1)
+    async def pflaumenbaum_loop(self):
+
+        await self.bot.wait_until_ready()
+
+        new_start = datetime.now(timezone.utc) + timedelta(days=7)
+        new_end = new_start + timedelta(seconds=42)
+
+        for guild in self.bot.guilds:
+
+            existing_event = discord.utils.get(guild.scheduled_events, name=self.EVENT_NAME)
+
+            if existing_event:
+                try:
+                    await existing_event.edit(
+                        start_time=new_start,
+                        end_time=new_end,
+                        reason=config.EVENT_REASON
+                    )
+                    print(f"[{guild.name}] Event erfolgreich verschoben.")
+
+                except discord.Forbidden:
+                    print(f"[{guild.name}] Fehlende Rechte zum Bearbeiten von Events.")
+                except discord.HTTPException as e:
+                    print(f"[{guild.name}] API Fehler beim Verschieben: {e}")
+
+            else:
+                try:
+                    await guild.create_scheduled_event(
+                        name=self.EVENT_NAME,
+                        description=config.EVENT_DESCRIPTION,
+                        start_time=new_start,
+                        end_time=new_end,
+                        entity_type=discord.EntityType.external,
+                        location=config.EVENT_LOCATION,
+                        privacy_level=discord.PrivacyLevel.guild_only
+                    )
+                    print(f"[{guild.name}] Event erfolgreich erstellt.")
+                except Exception as e:
+                    print(f"[{guild.name}] Fehler beim Erstellen des Events: {e}")
+
+
+
+
+
+    @commands.command()
+    async def Abstinenz(self, ctx):
+        channel = self.bot.get_channel(self.ABSTINENZ_ID)
+        voice_client = ctx.guild.voice_client
+
+        if voice_client:
+            # Wenn er schon in einem Voice-Channel ist, zieht er einfach um
+            await voice_client.move_to(channel)
+        else:
+            # Wenn er noch nirgends ist, tritt er frisch bei
+            await channel.connect()
+
+
+        if self.state is None:
+            await ctx.send(config.MSG_NO_MUSIC_MODULE)
+            return
+
+        self.state.server_settings[ctx.guild.id] = {
+            "repeat": "Single"
+        }
+        music_module = self.bot.get_cog("MusicCog")
+        await music_module.play_song(config.ABSTINENZ_SONG, ctx, ctx.guild.voice_client)
+
+    @commands.command(name=config.QUOTE_CMD_NAME, aliases=config.QUOTE_CMD_ALIASES)
+    async def random_quote(self, ctx):
+        channel = self.bot.get_channel(self.QUOTE_CHANNEL_ID)
+        async with ctx.typing():
+            # Lade die letzten 200 Nachrichten herunter
+            messages = [msg async for msg in channel.history(limit=200)]
+
+            # Filtere Nachrichten heraus, die leer sind (z.B. nur ein Bild)
+            # oder von anderen Bots stammen
+            valid_texts = [
+                msg.content for msg in messages
+                if msg.content.strip() != "" and not msg.author.bot
+            ]
+
+            # Sicherheitscheck, falls der Channel leer ist
+            if not valid_texts:
+                await ctx.send(config.QUOTE_FALLBACK_MSG)
+                return
+
+            # Eine zufällige Nachricht auswählen und senden
+            random_text = random.choice(valid_texts)
+            await ctx.send(random_text)
+
+    @commands.command()
+    async def reset_timer(self, ctx):
+        self.state.last_seen_erhabenheit = 0
+        await ctx.send("Ok!")
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        await self.begrudges_funktion(member, before, after)
+        await self.geaechteter(member, before, after)
+
+    async def begrudges_funktion(self, member, before, after):
+        GREETING_SONG = config.GREETING_SONG
+        COOLDOWN = 1200
+
+        if member.id not in [self.LICHTGOT_ID, self.LOETGOTT_ID]:
+            return
+
+        def are_together_now(channel):
+            if not channel:
+                return False
+            member_ids = [m.id for m in channel.members]
+            return self.LICHTGOT_ID in member_ids and self.LOETGOTT_ID in member_ids
+
+        def were_together_before(channel, member_that_moved):
+            if not channel:
+                return False
+
+            member_ids = set(m.id for m in channel.members)
+            member_ids.add(member_that_moved.id)
+            return self.LOETGOTT_ID in member_ids and self.LICHTGOT_ID in member_ids
+
+
+        together_before = were_together_before(before.channel, member)
+        together_after = are_together_now(after.channel)
+        print(f"[Voice] Vorher: {together_before} - Nachher: {together_after}")
+
+        if self.USE_MANUAL_TOGGLE:
+            if not hasattr(self.state, "is_erhabenheit"):
+                self.state.is_erhabenheit = False
+
+            if not together_before and together_after:
+                if not self.state.is_erhabenheit:
+                    print("[Voice] Begrüßung gestartet.")
+                    self.state.is_erhabenheit = True
+                    await self.trigger_greeting_interrupt(member.guild, after.channel, GREETING_SONG)
+                else:
+                    print("[Voice] Begrüßung bereits aktiv.")
+        else:
+            if together_before and not together_after:
+                self.state.last_seen_erhabenheit = time.time()
+                print("[Voice] Benutzer getrennt. Cooldown-Timer gestartet.")
+                return
+
+            if not together_before and together_after:
+                now = time.time()
+                last_sep = getattr(self.state, "last_seen_erhabenheit", 0)
+
+                if now - last_sep > COOLDOWN:
+                    print(f"[Voice] Benutzer wieder vereint ({int(now - last_sep)}s seit Trennung).")
+                    self.state.last_seen_erhabenheit = now
+                    await self.trigger_greeting_interrupt(member.guild, after.channel, GREETING_SONG)
+                else:
+                    time_left = int(COOLDOWN - (now - last_sep))
+                    print(f"[Voice] Cooldown aktiv ({time_left}s verbleibend).")
+
+    async def trigger_greeting_interrupt(self, guild, channel, song):
+        state = self.state
+        current_info = state.playback_info.get(guild.id)
+
+        old_data_copy = None
+        resume_time = 0
+        #was_playing = False
+
+        is_actually_playing = guild.voice_client and guild.voice_client.is_playing()
+
+        if is_actually_playing and current_info:
+            #was_playing = True
+
+            if current_info.get("is_interrupted"):
+
+                old_data_copy = current_info.get("interrupted_data")
+                resume_time = current_info.get("resume_at", 0)
+                print("[Audio] Wiedergabe-Unterbrechung geschachtelt. Vorherige Audiodaten gesichert.")
+
+            else:
+                start_time = current_info.get("start_time", time.time())
+                resume_time = time.time() - start_time
+                old_data_copy = current_info.copy()
+
+            #Musik stoppen
+            state.first_stop = True
+            state.playback_info[guild.id]["is_interrupted"] = True
+            #state.playback_info[guild.id]["interrupted_song"] = current_info
+            #state.playback_info[guild.id]["resume_at"] = resume_time
+            guild.voice_client.stop()
+
+            await asyncio.sleep(0.5)
+
+        if not guild.voice_client:
+            await channel.connect()
+
+        state.playback_info[guild.id] = {
+            #"start_time": time.time(),
+            #"duration": 0,
+            #"name": song,
+            #"file": song + ".mp3",
+            #"is_paused": False,
+            #"pause_start": 0,
+            "is_interrupted": True,
+            "interrupted_data": old_data_copy,
+            "resume_at": resume_time,
+        }
+
+
+        musicCog = self.bot.get_cog("MusicCog")
+        await musicCog.play_song(song, guild, guild.voice_client)
+
+    async def geaechteter(self, member, before, after):
+        OUTLAW_ROLE_NAME = config.OUTLAW_ROLE_NAME
+
+        if before.channel != after.channel and after.channel is not None:
+
+            # Prüfen, ob der User die Rolle "Der geächtete" besitzt
+            has_outlaw_role = any(role.name == OUTLAW_ROLE_NAME for role in member.roles)
+
+            if has_outlaw_role:
+                guild = member.guild
+                current_channel = after.channel
+
+                # Alle verfügbaren Voice-Channels auf dem Server ermitteln (außer dem, in den er gerade reingekommen ist)
+                available_channels = [c for c in guild.voice_channels if c != current_channel]
+
+                if not available_channels:
+                    print("Es gibt keinen anderen Voice-Channel, in den man verschieben könnte!")
+                    return
+
+                # Wähle einen zufälligen Ziel-Channel aus
+                target_channel = random.choice(available_channels)
+
+                # Alle anderen Mitglieder im selben Channel (außer dem Geächteten selbst und dem Bot) einlesen
+                victims = [m for m in current_channel.members if m != member]
+
+                if victims:
+                    print(
+                        f"Geächteter {member.name} hat {current_channel.name} betreten. Jage alle nach {target_channel.name}...")
+                    for victim in victims:
+                        try:
+                            await victim.move_to(target_channel)
+                        except discord.Forbidden:
+                            print(f"Keine Berechtigung, {victim.name} zu verschieben.")
+                        except Exception as e:
+                            print(f"Fehler beim Verschieben von {victim.name}: {e}")
+
+    @commands.command(name="glue")
+    @commands.has_role(config.OWNER_ROLE_NAME)
+    async def glue_command(self, ctx):
+        FAREWELL_SONG = config.FAREWELL_SONG
+
+        # Nur ihr beide dürft den Befehl nutzen
+        if ctx.author.id not in [self.LICHTGOT_ID, self.LOETGOTT_ID]:
+            return
+
+        if not ctx.author.voice or not ctx.author.voice.channel:
+            await ctx.send("Du musst in einem Sprachkanal sein, um dich zu verabschieden!")
+            return
+
+        # 1. Status auf inaktiv setzen
+        self.state.is_erhabenheit = False
+        await ctx.send(config.MSG_FAREWELL)
+
+        # 2. VL abspielen (Wir nutzen einfach unseren perfekten Interrupt-Mechanismus!)
+        await self.trigger_greeting_interrupt(ctx.guild, ctx.author.voice.channel, FAREWELL_SONG)
+
+
+
+    @commands.command(name="rinda_chaos")
+    @commands.has_role(config.OWNER_ROLE_NAME)
+    async def rinda_chaos_command(self, ctx):
+        """Benennt alle Server-Mitglieder in 'Rinda x' (mit irrationaler Zahl) um."""
+        #self.state.original_nicknames.clear()
+        #Ungünstig, wenn man zweimal rinda_chaos aufruft, und alle nicknames verloren gehen.
+        if self.state.original_nicknames:
+            await ctx.send("Rinda Chaos ist noch aktiv! Rufe erst rinda_heal auf!")
+            return
+
+        async with ctx.typing():
+            count = 0
+            async for member in ctx.guild.fetch_members():
+                # Überspringe den Bot selbst oder den Serverowner (falls der Bot ihn nicht ändern kann)
+                if member == ctx.guild.owner or member.bot:
+                    continue
+
+                try:
+                    # Alten Nickname speichern (oder den aktuellen Global Name / Benutzernamen, falls kein Nickname da ist)
+                    self.state.original_nicknames[member.id] = member.nick if member.nick else member.name
+
+                    new_nick = self.generate_irrational_string()
+
+                    # Discord-Nicknames haben ein Limit von 32 Zeichen.
+                    # Falls der Term zu lang wird, kürzen wir ihn ab oder fangen es ab.
+                    if len(new_nick) > 32:
+                        new_nick = new_nick[:32]
+
+                    await member.edit(nick=new_nick)
+                    count += 1
+                except discord.Forbidden:
+                    # Falls die Rolle des Users über dem des Bots steht
+                    continue
+                except Exception as e:
+                    print(e)
+
+        await ctx.send(config.format_msg(config.MSG_CHAOS_SUCCESS, count=count))
+
+
+    @commands.command(name="rinda_heal")
+    @commands.has_role(config.OWNER_ROLE_NAME)
+    async def rinda_heal(self, ctx):
+
+        if not self.state.original_nicknames:
+            await ctx.send("Es gibt keine gespeicherten Nicknames zum Wiederherstellen!")
+            return
+
+        async with ctx.typing():
+            count = 0
+            for member_id, old_nick in self.state.original_nicknames.items():
+                member = ctx.guild.get_member(member_id)
+                if member:
+                    try:
+                        if old_nick == member.name:
+                            await member.edit(nick=None)
+                        else:
+                            await member.edit(nick=old_nick)
+                        count += 1
+                    except discord.Forbidden:
+                        continue
+                    except Exception as e:
+                        print(e)
+
+            self.state.original_nicknames.clear()
+        await ctx.send(config.format_msg(config.MSG_HEAL_SUCCESS, count=count))
+
+    def generate_irrational_string(self):
+        """Generiert einen echten irrationalen Term als lesbaren String."""
+        constants = ["π", "e", "√2", "√3", "√5"]
+
+        # Verschiedene Templates für den mathematischen Ausdruck
+        templates = [
+            lambda c1, c2, f: f"Rinda {c1} * {f}",
+            lambda c1, c2, f: f"Rinda {f} * {c1}",
+            lambda c1, c2, f: f"Rinda {c1} / {c2} * {f}",
+            lambda c1, c2, f: f"Rinda ({c1} / {c2}) * {f}",
+            lambda c1, c2, f: f"Rinda {c1} * {c2} * {f}"
+        ]
+
+        c1 = random.choice(constants)
+        c2 = random.choice(constants)
+        # Damit nicht durch dieselbe Konstante geteilt wird (sieht sonst langweilig aus)
+        while c2 == c1:
+            c2 = random.choice(constants)
+
+        factor = round(random.uniform(1.1, 9.9), 2)
+
+        chosen_template = random.choice(templates)
+        return chosen_template(c1, c2, factor)
+
+
+
+async def setup(bot):
+    await bot.add_cog(EasterEggsCog(bot))
